@@ -191,6 +191,12 @@ for k_best in k_list:
 # Mean validation score: 0.842 (std: 0.026)
 # Parameters: {'kernel': 'rbf', 'C': 119.31281297580099, 'gamma': 0.021005024090519964, 'class_weight': None}
 
+# 30
+# RandomizedSearchCV took 26130.71 seconds for 10000 candidates parameter settings.
+# Model with rank: 1
+# Mean validation score: 0.842 (std: 0.026)
+# Parameters: {'kernel': 'rbf', 'C': 343.37779042490905, 'gamma': 0.014551856626045301, 'class_weight': None}
+
 # using the best model # of features
 features = SelectKBest(f_classif, k=30).fit(X,y)
 X = pd.DataFrame(features.transform(X))
