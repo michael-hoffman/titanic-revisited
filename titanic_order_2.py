@@ -15,6 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_score
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_classif
 
 # utility
 from time import time
@@ -89,7 +91,7 @@ def drop_features(data):
     return data.drop(['Name', 'Ticket'], axis=1)
 
 # Utility function to report best scores
-def report(results, n_top=3):
+def report(results, n_top=1):
     for i in range(1, n_top + 1):
         candidates = np.flatnonzero(results['rank_test_score'] == i)
         for candidate in candidates:
@@ -149,27 +151,34 @@ X, y = data, training_data['Survived']
 
 # generate the polynomial features
 poly = preprocessing.PolynomialFeatures(2)
-X = pd.DataFrame(poly.fit_transform(X))
+X = pd.DataFrame(poly.fit_transform(X)).drop(0, axis=1)
 
-# ----------------------------------
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=0)
+# feature selection
+k_list = [10,15,20,30]
+for k_best in k_list:
+    features = SelectKBest(f_classif, k=k_best).fit(X,y)
+    X_new = pd.DataFrame(features.transform(X))
 
-# Support Vector Machines
-#
-# Set the parameters by cross-validation
-param_dist = {'C': scipy.stats.uniform(0.1, 1000), 'gamma': scipy.stats.uniform(.001, 1.0),
-  'kernel': ['rbf'], 'class_weight':['balanced', None]}
+    # transform the data again
+    X_new = scaler.fit_transform(X_new)
 
-clf = SVC()
+    # ----------------------------------
+    # Support Vector Machines
+    #
+    # Set the parameters by cross-validation
+    param_dist = {'C': scipy.stats.uniform(0.1, 1000), 'gamma': scipy.stats.uniform(.001, 1.0),
+      'kernel': ['rbf'], 'class_weight':['balanced', None]}
 
-# run randomized search
-n_iter_search = 100
-random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
-                                   n_iter=n_iter_search, n_jobs=-1, cv=4)
+    clf = SVC()
 
-start = time()
-random_search.fit(X, y)
-print("RandomizedSearchCV took %.2f seconds for %d candidates"
-      " parameter settings." % ((time() - start), n_iter_search))
-report(random_search.cv_results_)
+    # run randomized search
+    n_iter_search = 10000
+    random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
+                                       n_iter=n_iter_search, n_jobs=-1, cv=6)
+
+    start = time()
+    random_search.fit(X_new, y)
+    print(k_best)
+    print("RandomizedSearchCV took %.2f seconds for %d candidates"
+          " parameter settings." % ((time() - start), n_iter_search))
+    report(random_search.cv_results_)
