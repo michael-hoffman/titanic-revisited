@@ -24,6 +24,7 @@ from time import time
 training_data = pd.read_csv('train.csv')
 test_data = pd.read_csv('test.csv')
 
+pd.options.mode.chained_assignment = None  # default='warn'
 
 ## Set of functions to transform features into more convenient format.
 #
@@ -155,36 +156,36 @@ poly = preprocessing.PolynomialFeatures(2)
 X = pd.DataFrame(poly.fit_transform(X)).drop(0, axis=1)
 
 # feature selection
-k_list = [30]
-for k_best in k_list:
-    features = SelectKBest(f_classif, k=k_best).fit(X,y)
-    X_new = pd.DataFrame(features.transform(X))
-
-    # transform the data again
-    scaler_post = preprocessing.StandardScaler()
-    scale_post = scaler_post.fit(X_new)
-    X_new = scale_post.transform(X_new)
-
-    # ----------------------------------
-    # Support Vector Machines
-    #
-    # Set the parameters by cross-validation
-    param_dist = {'C': scipy.stats.uniform(0.1, 1000), 'gamma': scipy.stats.uniform(.001, 1.0),
-      'kernel': ['rbf'], 'class_weight':['balanced', None]}
-
-    clf = SVC()
-
-    # run randomized search
-    n_iter_search = 10000
-    random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
-                                       n_iter=n_iter_search, n_jobs=-1, cv=6)
-
-    start = time()
-    random_search.fit(X_new, y)
-    print(k_best)
-    print("RandomizedSearchCV took %.2f seconds for %d candidates"
-          " parameter settings." % ((time() - start), n_iter_search))
-    report(random_search.cv_results_)
+# k_list = [30]
+# for k_best in k_list:
+#     features = SelectKBest(f_classif, k=k_best).fit(X,y)
+#     X_new = pd.DataFrame(features.transform(X))
+#
+#     # transform the data again
+#     scaler_post = preprocessing.StandardScaler()
+#     scale_post = scaler_post.fit(X_new)
+#     X_new = scale_post.transform(X_new)
+#
+#     # ----------------------------------
+#     # Support Vector Machines
+#     #
+#     # Set the parameters by cross-validation
+#     param_dist = {'C': scipy.stats.uniform(0.1, 1000), 'gamma': scipy.stats.uniform(.001, 1.0),
+#       'kernel': ['rbf'], 'class_weight':['balanced', None]}
+#
+#     clf = SVC()
+#
+#     # run randomized search
+#     n_iter_search = 10000
+#     random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
+#                                        n_iter=n_iter_search, n_jobs=-1, cv=6)
+#
+#     start = time()
+#     random_search.fit(X_new, y)
+#     print(k_best)
+#     print("RandomizedSearchCV took %.2f seconds for %d candidates"
+#           " parameter settings." % ((time() - start), n_iter_search))
+#     report(random_search.cv_results_)
 
 # RandomizedSearchCV took 5854.23 seconds for 10000 candidates parameter settings.
 # Model with rank: 1
@@ -206,16 +207,17 @@ scaler_post = preprocessing.StandardScaler()
 scale_post = scaler_post.fit(X)
 X = pd.DataFrame(scale_post.transform(X))
 
-params = {'kernel': 'rbf', 'C': 119.31281297580099, 'gamma': 0.021005024090519964, 'class_weight': None}
+params = {'kernel': 'rbf', 'C': 343.37779042490905, 'gamma': 0.014551856626045301, 'class_weight': None}
 clf = SVC(**params)
 scores = cross_val_score(clf, X, y, cv=10, n_jobs=-1)
 print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
 # apply scales and transforms to test data
 droplist = 'PassengerId'.split()
+iDs = test_data['PassengerId']
 test_data = test_data.drop(droplist, axis=1)
-select = 'Age Fare'.split()
-test_data[select] = scale_pre.transform(test_data[select])
+select = tuple('Age Fare'.split())
+test_data.loc[:,select] = scale_pre.transform(test_data.loc[:,select])
 
 # generate the polynomial features
 test_data = pd.DataFrame(poly.fit_transform(test_data)).drop(0, axis=1)
@@ -229,9 +231,9 @@ print(predictions)
 print('Predicted Number of Survivors: %d' % int(np.sum(predictions)))
 
 # output .csv for upload
-submission = pd.DataFrame({
-        "PassengerId": test_data['PassengerId'].astype(int),
-        "Survived": predictions.astype(int)
-    })
-
-submission.to_csv('../submission.csv', index=False)
+# submission = pd.DataFrame({
+#         "PassengerId": iDs.astype(int),
+#         "Survived": predictions.astype(int)
+#     })
+#
+# submission.to_csv('../submission.csv', index=False)

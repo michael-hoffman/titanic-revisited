@@ -24,6 +24,7 @@ from time import time
 training_data = pd.read_csv('train.csv')
 test_data = pd.read_csv('test.csv')
 
+pd.options.mode.chained_assignment = None  # default='warn'
 
 ## Set of functions to transform features into more convenient format.
 #
@@ -141,6 +142,6 @@ test_data = combined[891:].drop('Survived', axis=1)
 scaler_pre = preprocessing.StandardScaler()
 select = tuple('Age Fare'.split())
 scale_pre = scaler_pre.fit(training_data.loc[:,select])
-# training_data.loc[:,select] = scale_pre.transform(training_data.loc[:,select])
-print(training_data.update(pd.DataFrame(scale_pre.transform(training_data.loc[:,select])), ))
+scaled = scale_pre.transform(training_data.loc[:,select])
+training_data.loc[:,'Age'] = scaled[:,0]
 print(training_data.loc[:,select].head())
