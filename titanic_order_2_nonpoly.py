@@ -13,8 +13,6 @@ import fancyimpute
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_score
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_classif
 from scipy.stats import randint as sp_randint
 from sklearn.ensemble import RandomForestClassifier
 
@@ -151,77 +149,34 @@ data = training_data.drop(droplist, axis=1)
 # Define features and target values
 X, y = data, training_data['Survived']
 
-# generate the polynomial features
-poly = preprocessing.PolynomialFeatures(2)
-X = pd.DataFrame(poly.fit_transform(X)).drop(0, axis=1)
-
-# using the best model # of features
-features = SelectKBest(f_classif, k=30).fit(X,y)
-X = pd.DataFrame(features.transform(X))
-
-# transform the data again
-scaler_post = preprocessing.StandardScaler()
-scale_post = scaler_post.fit(X)
-X = pd.DataFrame(scale_post.transform(X))
-
-# # build a classifier
-# clf = RandomForestClassifier()
-#
-# # specify parameters and distributions to sample from
-# param_dist = {"n_estimators": sp_randint(15, 25),
-#               "max_depth": [3, None],
-#               "max_features": sp_randint(1, 11),
-#               "min_samples_split": sp_randint(2, 11),
-#               "min_samples_leaf": sp_randint(1, 11),
-#               "bootstrap": [True],
-#               "criterion": ["gini", "entropy"]}
-#
-# # run randomized search
-# n_iter_search = 1000
-# random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
-#                                    n_iter=n_iter_search, n_jobs=-1, cv=6)
-#
-# start = time()
-# random_search.fit(X, y)
-# print("RandomizedSearchCV took %.2f seconds for %d candidates"
-#       " parameter settings." % ((time() - start), n_iter_search))
-# report(random_search.cv_results_)
-
-'''
-RandomizedSearchCV took 356.13 seconds for 1000 candidates parameter settings.
-Model with rank: 1
-Mean validation score: 0.840 (std: 0.028)
-Parameters: {'bootstrap': True, 'min_samples_leaf': 5, 'n_estimators': 21, 'min_samples_split': 6, 'criterion': 'gini', 'max_features': 9, 'max_depth': None}
-'''
 
 # build a classifier
-params = {'bootstrap': True, 'min_samples_leaf': 5, 'n_estimators': 21, 'min_samples_split': 6, 'criterion': 'gini', 'max_features': 9, 'max_depth': None}
-clf = RandomForestClassifier(**params)
+clf = RandomForestClassifier()
 
-scores = cross_val_score(clf, X, y, cv=6, n_jobs=-1)
-print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+# specify parameters and distributions to sample from
+param_dist = {"n_estimators": sp_randint(15, 25),
+              "max_depth": [3, None],
+              "max_features": sp_randint(1, 11),
+              "min_samples_split": sp_randint(2, 11),
+              "min_samples_leaf": sp_randint(1, 11),
+              "bootstrap": [True],
+              "criterion": ["gini", "entropy"]}
 
-# apply scales and transforms to test data
-droplist = 'PassengerId'.split()
-iDs = test_data['PassengerId']
-test_data = test_data.drop(droplist, axis=1)
-select = tuple('Age Fare'.split())
-test_data.loc[:,select] = scale_pre.transform(test_data.loc[:,select])
+# run randomized search
+n_iter_search = 100
+random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
+                                   n_iter=n_iter_search, n_jobs=-1, cv=6)
 
-# generate the polynomial features
-test_data = pd.DataFrame(poly.fit_transform(test_data)).drop(0, axis=1)
-test_data = pd.DataFrame(features.transform(test_data))
-test_data = pd.DataFrame(scale_post.transform(test_data))
-
-# predict survival
-clf.fit(X,y)
-predictions = clf.predict(test_data)
-print('Predicted Number of Survivors: %d' % int(np.sum(predictions)))
+start = time()
+random_search.fit(X, y)
+print("RandomizedSearchCV took %.2f seconds for %d candidates"
+      " parameter settings." % ((time() - start), n_iter_search))
+report(random_search.cv_results_)
 
 # output .csv for upload
-submission = pd.DataFrame({
-        "PassengerId": iDs.astype(int),
-        "Survived": predictions.astype(int)
-    })
-
-submission.to_csv('../submission.csv', index=False)
+# submission = pd.DataFrame({
+#         "PassengerId": iDs.astype(int),
+#         "Survived": predictions.astype(int)
+#     })
+#
+# submission.to_csv('../submission.csv', index=False)
