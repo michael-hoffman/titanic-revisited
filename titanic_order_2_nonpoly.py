@@ -163,7 +163,7 @@ param_dist = {"n_estimators": sp_randint(15, 25),
               "criterion": ["gini", "entropy"]}
 
 # run randomized search
-n_iter_search = 100
+n_iter_search = 100000
 random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
                                    n_iter=n_iter_search, n_jobs=-1, cv=6)
 
