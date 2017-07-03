@@ -10,13 +10,11 @@ import seaborn as sns
 # machine learning
 from sklearn import preprocessing
 import fancyimpute
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_score
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_classif
-from scipy.stats import randint as sp_randint
-from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 
 # utility
 from time import time
@@ -24,9 +22,8 @@ from time import time
 training_data = pd.read_csv('train.csv')
 test_data = pd.read_csv('test.csv')
 
-pd.options.mode.chained_assignment = None  # default='warn'
 
-## Set of functions to transform features into more convenient format.
+# Set of functions to transform features into more convenient format.
 #
 # Code performs three separate tasks:
 #   (1). Pull out the first letter of the cabin feature.
@@ -69,7 +66,8 @@ def simplify_embark(data):
 
 
 # Extract title from names, then assign to one of five ordinal classes.
-# Function based on code from: https://www.kaggle.com/startupsci/titanic/titanic-data-science-solutions
+# Function based on code from:
+# https://www.kaggle.com/startupsci/titanic/titanic-data-science-solutions
 def add_title(data):
     data['Title'] = data.Name.str.extract(' ([A-Za-z]+)\.', expand=False)
     data.Title = data.Title.replace(['Lady', 'Countess', 'Capt', 'Col', 'Don', 'Dr', 'Major',
@@ -92,6 +90,8 @@ def drop_features(data):
     return data.drop(['Name', 'Ticket'], axis=1)
 
 # Utility function to report best scores
+
+
 def report(results, n_top=3):
     for i in range(1, n_top + 1):
         candidates = np.flatnonzero(results['rank_test_score'] == i)
@@ -124,6 +124,7 @@ test_data['Fare'] = test_data['Fare'].fillna(test_data['Fare'].median())
 all_data = [training_data, test_data]
 combined = pd.concat(all_data)
 
+
 def impute_ages(data):
     drop_survived = data.drop(['Survived'], axis=1)
     column_titles = list(drop_survived)
@@ -132,101 +133,62 @@ def impute_ages(data):
     results['Survived'] = list(data['Survived'])
     return results
 
+
 combined = impute_ages(combined)
 
 training_data = combined[:891]
-test_data = combined[891:].drop('Survived', axis=1)
+test_data = combined[891:]
 
 # transform age and fare data to have mean zero and variance 1.0
-# it may only be appropriate to do a min max scaling here
-scaler_pre = preprocessing.StandardScaler()
+scaler = preprocessing.StandardScaler()
 select = 'Age Fare'.split()
-scale_pre = scaler_pre.fit(training_data[select])
-training_data[select] = scale_pre.transform(training_data[select])
+training_data[select] = scaler.fit_transform(training_data[select])
+test_data[select] = scaler.transform(test_data[select])
 
 # drop uninformative data and the target feature
 droplist = 'Survived PassengerId'.split()
-data = training_data.drop(droplist, axis=1)
+data_train = training_data.drop(droplist, axis=1)
+data_test = test_data.drop(droplist, axis=1)
 
 # Define features and target values
-X, y = data, training_data['Survived']
+X_train, X_test, y_train, y_test = data_train, data_test, training_data['Survived'], test_data['Survived']
 
-# generate the polynomial features
-poly = preprocessing.PolynomialFeatures(2)
-X = pd.DataFrame(poly.fit_transform(X)).drop(0, axis=1)
+# feature names
+full_feature_names = list(X_train)
 
-# using the best model # of features
-features = SelectKBest(f_classif, k=30).fit(X,y)
-X = pd.DataFrame(features.transform(X))
+# build xgboost model
+dtrain_all = xgb.DMatrix(X_train, y_train, feature_names=full_feature_names)
+dtest = xgb.DMatrix(X_test, feature_names=full_feature_names)
 
-# transform the data again
-scaler_post = preprocessing.StandardScaler()
-scale_post = scaler_post.fit(X)
-X = pd.DataFrame(scale_post.transform(X))
+xgb_params = {
+    'eta': 0.01,
+    'max_depth': 4,
+    'subsample': 0.8,
+    'colsample_bytree': 0.65,
+    'objective': 'binary:logistic',
+    'eval_metric': 'error',
+    'min_child_weight': 4,
+    'silent': 1,
+    'seed': 0
+}
 
-# # build a classifier
-# clf = RandomForestClassifier()
-#
-# # specify parameters and distributions to sample from
-# param_dist = {"n_estimators": sp_randint(15, 25),
-#               "max_depth": [3, None],
-#               "max_features": sp_randint(1, 11),
-#               "min_samples_split": sp_randint(2, 11),
-#               "min_samples_leaf": sp_randint(1, 11),
-#               "bootstrap": [True],
-#               "criterion": ["gini", "entropy"]}
-#
-# # run randomized search
-# n_iter_search = 1000
-# random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
-#                                    n_iter=n_iter_search, n_jobs=-1, cv=6)
-#
-# start = time()
-# random_search.fit(X, y)
-# print("RandomizedSearchCV took %.2f seconds for %d candidates"
-#       " parameter settings." % ((time() - start), n_iter_search))
-# report(random_search.cv_results_)
+# Perform cross-validation on training set.
+cv_output = xgb.cv(xgb_params, dtrain_all, num_boost_round=1000, early_stopping_rounds=100,
+                   verbose_eval=50, show_stdv=False)
+num_boost_round = len(cv_output)
+print(num_boost_round)
 
-'''
-RandomizedSearchCV took 356.13 seconds for 1000 candidates parameter settings.
-Model with rank: 1
-Mean validation score: 0.840 (std: 0.028)
-Parameters: {'bootstrap': True, 'min_samples_leaf': 5, 'n_estimators': 21, 'min_samples_split': 6, 'criterion': 'gini', 'max_features': 9, 'max_depth': None}
+model = xgb.train(dict(xgb_params, silent=0), dtrain_all, num_boost_round=num_boost_round)
 
-RandomizedSearchCV took 9915.26 seconds for 100000 candidates parameter settings.
-Model with rank: 1
-Mean validation score: 0.855 (std: 0.033)
-Parameters: {'bootstrap': True, 'min_samples_leaf': 6, 'n_estimators': 16, 'min_samples_split': 2, 'criterion': 'entropy', 'max_features': 9, 'max_depth': None}
-'''
 
-# build a classifier
-params = {'bootstrap': True, 'min_samples_leaf': 6, 'n_estimators': 16, 'min_samples_split': 2, 'criterion': 'entropy', 'max_features': 9, 'max_depth': None}
-clf = RandomForestClassifier(**params)
+# Plot feature importance.
+# fig, ax = plt.subplots(1, 1, figsize=(8, 16))
+# xgb.plot_importance(model, height=0.2, ax=ax)
 
-scores = cross_val_score(clf, X, y, cv=6, n_jobs=-1)
-print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+# Predict for test set.
+y_pred = model.predict(dtest)
 
-# apply scales and transforms to test data
-droplist = 'PassengerId'.split()
-iDs = test_data['PassengerId']
-test_data = test_data.drop(droplist, axis=1)
-select = tuple('Age Fare'.split())
-test_data.loc[:,select] = scale_pre.transform(test_data.loc[:,select])
+df_sub = pd.DataFrame(
+    {"PassengerId": test_data['PassengerId'].astype(int), "Survived": y_pred.astype(int)})
 
-# generate the polynomial features
-test_data = pd.DataFrame(poly.fit_transform(test_data)).drop(0, axis=1)
-test_data = pd.DataFrame(features.transform(test_data))
-test_data = pd.DataFrame(scale_post.transform(test_data))
-
-# predict survival
-clf.fit(X,y)
-predictions = clf.predict(test_data)
-print('Predicted Number of Survivors: %d' % int(np.sum(predictions)))
-
-# output .csv for upload
-submission = pd.DataFrame({
-        "PassengerId": iDs.astype(int),
-        "Survived": predictions.astype(int)
-    })
-
-submission.to_csv('../submission.csv', index=False)
+df_sub.to_csv('xgboost_initial_niave.csv', index=False)

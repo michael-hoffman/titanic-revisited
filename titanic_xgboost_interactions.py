@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import scipy
 
+
 # visualization
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # machine learning
 from sklearn import preprocessing
@@ -16,7 +16,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_classif
 from scipy.stats import randint as sp_randint
-from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 
 # utility
 from time import time
@@ -164,69 +164,46 @@ scaler_post = preprocessing.StandardScaler()
 scale_post = scaler_post.fit(X)
 X = pd.DataFrame(scale_post.transform(X))
 
-# # build a classifier
-# clf = RandomForestClassifier()
+# feature names
+full_feature_names = list(X)
+print(full_feature_names)
+exit()
 #
-# # specify parameters and distributions to sample from
-# param_dist = {"n_estimators": sp_randint(15, 25),
-#               "max_depth": [3, None],
-#               "max_features": sp_randint(1, 11),
-#               "min_samples_split": sp_randint(2, 11),
-#               "min_samples_leaf": sp_randint(1, 11),
-#               "bootstrap": [True],
-#               "criterion": ["gini", "entropy"]}
-#
-# # run randomized search
-# n_iter_search = 1000
-# random_search = RandomizedSearchCV(clf, param_distributions=param_dist,
-#                                    n_iter=n_iter_search, n_jobs=-1, cv=6)
-#
-# start = time()
-# random_search.fit(X, y)
-# print("RandomizedSearchCV took %.2f seconds for %d candidates"
-#       " parameter settings." % ((time() - start), n_iter_search))
-# report(random_search.cv_results_)
+dtrain_all = xgb.DMatrix(X, y, feature_names=full_feature_names)
 
-'''
-RandomizedSearchCV took 356.13 seconds for 1000 candidates parameter settings.
-Model with rank: 1
-Mean validation score: 0.840 (std: 0.028)
-Parameters: {'bootstrap': True, 'min_samples_leaf': 5, 'n_estimators': 21, 'min_samples_split': 6, 'criterion': 'gini', 'max_features': 9, 'max_depth': None}
+xgb_params = {
+    'eta': 0.05,
+    'max_depth': 4,
+    'subsample': 0.8,
+    'colsample_bytree': 0.65,
+    'objective': 'reg:linear',
+    'eval_metric': 'rmse',
+    'min_child_weight': 4,
+    'silent': 1,
+    'seed':0
+}
 
-RandomizedSearchCV took 9915.26 seconds for 100000 candidates parameter settings.
-Model with rank: 1
-Mean validation score: 0.855 (std: 0.033)
-Parameters: {'bootstrap': True, 'min_samples_leaf': 6, 'n_estimators': 16, 'min_samples_split': 2, 'criterion': 'entropy', 'max_features': 9, 'max_depth': None}
-'''
+# Train model using tuned hyperparameters (found with xgb.cv).
+#num_boost_round = 416
 
-# build a classifier
-params = {'bootstrap': True, 'min_samples_leaf': 6, 'n_estimators': 16, 'min_samples_split': 2, 'criterion': 'entropy', 'max_features': 9, 'max_depth': None}
-clf = RandomForestClassifier(**params)
+# Perform cross-validation on training set.
+cv_output = xgb.cv(xgb_params, dtrain_all, num_boost_round=1000, early_stopping_rounds=20,
+                   verbose_eval=50, show_stdv=False)
+num_boost_round = len(cv_output)
+print(num_boost_round)
 
-scores = cross_val_score(clf, X, y, cv=6, n_jobs=-1)
-print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+model = xgb.train(dict(xgb_params, silent=0), dtrain_all, num_boost_round=num_boost_round)
 
-# apply scales and transforms to test data
-droplist = 'PassengerId'.split()
-iDs = test_data['PassengerId']
-test_data = test_data.drop(droplist, axis=1)
-select = tuple('Age Fare'.split())
-test_data.loc[:,select] = scale_pre.transform(test_data.loc[:,select])
 
-# generate the polynomial features
-test_data = pd.DataFrame(poly.fit_transform(test_data)).drop(0, axis=1)
-test_data = pd.DataFrame(features.transform(test_data))
-test_data = pd.DataFrame(scale_post.transform(test_data))
-
-# predict survival
-clf.fit(X,y)
-predictions = clf.predict(test_data)
-print('Predicted Number of Survivors: %d' % int(np.sum(predictions)))
+# Plot feature importance.
+fig, ax = plt.subplots(1, 1, figsize=(8, 16))
+xgb.plot_importance(model, height=0.2, ax=ax)
+plt.show()
 
 # output .csv for upload
-submission = pd.DataFrame({
-        "PassengerId": iDs.astype(int),
-        "Survived": predictions.astype(int)
-    })
-
-submission.to_csv('../submission.csv', index=False)
+# submission = pd.DataFrame({
+#         "PassengerId": iDs.astype(int),
+#         "Survived": predictions.astype(int)
+#     })
+#
+# submission.to_csv('../submission.csv', index=False)
