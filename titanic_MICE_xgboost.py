@@ -172,6 +172,7 @@ xgb_params = {
     'seed': 0
 }
 
+# it is needed to setup a classifier
 # Perform cross-validation on training set.
 cv_output = xgb.cv(xgb_params, dtrain_all, num_boost_round=1000, early_stopping_rounds=100,
                    verbose_eval=50, show_stdv=False)
