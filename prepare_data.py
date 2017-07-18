@@ -17,12 +17,6 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_score
 
-# ANN
-from keras.models import Sequential
-from keras.callbacks import EarlyStopping, ModelCheckpoint
-from keras.layers import Dense, Activation, Dropout
-from keras import optimizers
-
 training_data = pd.read_csv('train.csv')
 test_data = pd.read_csv('test.csv')
 seed = 42
@@ -153,11 +147,8 @@ droplist = 'Survived PassengerId'.split()
 data_train = training_data.drop(droplist, axis=1)
 data_test = test_data.drop(droplist, axis=1)
 
-# Define features and target values
-X_train, X_test, y_train, y_test = train_test_split(
-    data_train, training_data['Survived'], test_size=0.20, random_state=seed)
-
-# feature names
-full_feature_names = list(X_train)
-
 # save data for analysis
+print("Writing transformed data to csv.")
+data_train.to_csv('data_train.csv')
+training_data['Survived'].to_csv('data_target.csv')
+data_test.to_csv('data_test.csv')
