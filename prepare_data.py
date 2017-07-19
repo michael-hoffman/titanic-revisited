@@ -114,6 +114,7 @@ def transform_all(data):
 
 training_data = transform_all(training_data)
 test_data = transform_all(test_data)
+
 # Impute single missing 'Fare' value with median
 training_data['Fare'] = training_data['Fare'].fillna(training_data['Fare'].median())
 test_data['Fare'] = test_data['Fare'].fillna(test_data['Fare'].median())
@@ -142,6 +143,12 @@ select = 'Age Fare'.split()
 training_data[select] = scaler.fit_transform(training_data[select])
 test_data[select] = scaler.transform(test_data[select])
 
+# encode the data
+encoder = preprocessing.OneHotEncoder()
+mask = list(map(int, '0 1 0 1 0 1 0 1 0 1 1 0'.split()))
+mask = [num == 1 for num in mask]
+encode_data = training_data[mask]
+
 # drop uninformative data and the target feature
 droplist = 'Survived PassengerId'.split()
 data_train = training_data.drop(droplist, axis=1)
@@ -152,4 +159,4 @@ print("Writing transformed data to csv.")
 data_train.to_csv('data_train.csv', index=False)
 training_data[['PassengerId','Survived']].to_csv('data_target.csv',
  header='Survived', index=False)
-data_test.to_csv('data_test.csv')
+data_test.to_csv('data_test.csv', index=False)

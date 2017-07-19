@@ -32,9 +32,63 @@ y = pd.read_csv('data_target.csv')
 
 p_set = pd.read_csv('data_test.csv')
 
-# Define features and target values
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.20, random_state=seed)
-
 # feature names
-full_feature_names = list(X_train)
+full_feature_names = list(X)
+
+X = X.as_matrix()
+
+m = Sequential()
+m.add(Dense(128, activation='relu', input_shape=X.shape)
+m.add(Dropout(0.5))
+m.add(Dense(128, activation='relu'))
+m.add(Dropout(0.5))
+m.add(Dense(128, activation='relu'))
+m.add(Dropout(0.5))
+m.add(Dense(len(np.unique(y)), activation='softmax'))
+
+m.compile(
+    optimizer=optimizers.Adam(lr=0.001),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+m.fit(
+    # Feature matrix
+    X,
+    # Target class one-hot-encoded
+    y['Survived'].as_matrix(),
+    # Iterations to be run if not stopped by EarlyStopping
+    epochs=200,
+    callbacks=[
+        # Stop iterations when validation loss has not improved
+        EarlyStopping(monitor='val_loss', patience=25),
+        # Nice for keeping the last model before overfitting occurs
+        ModelCheckpoint(
+            'best.model',
+            monitor='val_loss',
+            save_best_only=True,
+            verbose=1
+        )
+    ],
+    verbose=2,
+    validation_split=0.1,
+    batch_size=256,
+)
+
+# Load the best model
+m.load_weights("best.model")
+
+# Keep track of what class corresponds to what index
+mapping = (
+    pd.get_dummies(pd.DataFrame(y_train), columns=[0], prefix='', prefix_sep='')
+    .columns.astype(int).values
+)
+y_test_preds = [mapping[pred] for pred in m.predict(X_test).argmax(axis=1)]
+
+print(
+pd.crosstab(
+    pd.Series(y_test, name='Actual'),
+    pd.Series(y_test_preds, name='Predicted'),
+    margins=True
+)
+)
