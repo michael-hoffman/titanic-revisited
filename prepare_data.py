@@ -149,6 +149,7 @@ data_test = test_data.drop(droplist, axis=1)
 
 # save data for analysis
 print("Writing transformed data to csv.")
-data_train.to_csv('data_train.csv')
-training_data['Survived'].to_csv('data_target.csv')
+data_train.to_csv('data_train.csv', index=False)
+training_data[['PassengerId','Survived']].to_csv('data_target.csv',
+ header='Survived', index=False)
 data_test.to_csv('data_test.csv')
