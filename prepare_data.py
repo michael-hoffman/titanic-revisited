@@ -144,10 +144,10 @@ training_data[select] = scaler.fit_transform(training_data[select])
 test_data[select] = scaler.transform(test_data[select])
 
 # encode the data
-encoder = preprocessing.OneHotEncoder()
-mask = list(map(int, '0 1 0 1 0 1 0 1 0 1 1 0'.split()))
-mask = [num == 1 for num in mask]
-encode_data = training_data[mask]
+#encoder = preprocessing.OneHotEncoder()
+#mask = list(map(int, '0 1 0 1 0 1 0 1 0 1 1 0'.split()))
+#mask = [num == 1 for num in mask]
+#encode_data = training_data[mask]
 
 # drop uninformative data and the target feature
 droplist = 'Survived PassengerId'.split()
